@@ -1,6 +1,14 @@
+const bcrypt = require('bcrypt'); // Use bcrypt instead of bcryptjs
 const express = require('express');
 const dbConnection = require('./dbconnection');
 const verifyToken = require('./verifyToken'); 
+const path = require('path');
+const app = express();  // Initialize app
+app.use('/uploads', (req, res, next) => {
+  console.log(`Requesting: ${req.originalUrl}`);
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
+
 const router = express.Router();
 
 function isPasswordStrong(password) {
@@ -78,7 +86,6 @@ router.put('/update-user-status/:id', verifyToken, async (req, res) => {
   }
 });
 
-
 router.delete('/delete-user/:id', verifyToken, async (req, res) => {
   const userId = req.params.id;
 
@@ -119,6 +126,127 @@ router.post('/add-case', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error creating case', error: error.message || error });
   }
 });
+router.post('/update-password', verifyToken, async (req, res) => {
+  try {
+    const user_id = req.user.id; // User ID is passed from the verifyToken middleware
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+    const userQuery = `
+      SELECT id, password FROM users WHERE id = ?
+    `;
+    
+    const [userResult] = await dbConnection().promise().query(userQuery, [user_id]);
+
+    if (userResult.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userData = userResult[0];
+    const isPasswordCorrect = await bcrypt.compare(currentPassword, userData.password);
+
+    if (!isPasswordCorrect) {
+      return res.status(400).json({ message: 'Incorrect current password' });
+    }
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    const updatePasswordQuery = `
+      UPDATE users SET password = ? WHERE id = ?
+    `;
+    await dbConnection().promise().query(updatePasswordQuery, [hashedNewPassword, user_id]);
+
+    res.status(200).json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.status(500).json({ message: 'Error updating password', error: error.message || error });
+  }
+});
+
+router.post('/get-my-info', verifyToken, async (req, res) => {
+  try {
+    const user_id = req.user.id; // User ID is passed from the verifyToken middleware
+
+    if (!user_id) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // Query to retrieve user information including hashed password and profile picture
+    const userQuery = `
+      SELECT id, username, email, full_name, phone_number, password, bio, profile_picture
+      FROM users
+      WHERE id = ?
+    `;
+
+    const [userResult] = await dbConnection().promise().query(userQuery, [user_id]);
+
+    if (userResult.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userData = userResult[0]; // Assuming only one user is returned
+
+    // Do not include the password in the response
+    res.status(200).json({
+      message: 'User information retrieved successfully',
+      user: {
+        id: userData.id,
+        username: userData.username,
+        email: userData.email,
+        fullName: userData.full_name,
+        phoneNumber: userData.phone_number,
+        bio: userData.bio,
+        profilePic: userData.profile_picture,  // Assuming 'profile_pic' is the path or URL to the profile image
+      }
+    });
+  } catch (error) {
+    console.error('Error retrieving user:', error);
+    res.status(500).json({ message: 'Error retrieving user information', error: error.message || error });
+  }
+});
+
+
+router.post('/get-user-info', verifyToken, async (req, res) => {
+  try {
+    const { user_id } = req.body; // Assuming you're passing the user_id in the request body
+
+    if (!user_id) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // Query to retrieve user information including pic
+    const userQuery = `
+      SELECT id, username, email, full_name, phone_number, bio, profile_picture
+      FROM users
+      WHERE id = ?
+    `;
+
+    const [userResult] = await dbConnection().promise().query(userQuery, [user_id]);
+
+    if (userResult.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const userData = userResult[0]; // Assuming only one user is returned
+
+    res.status(200).json({
+      message: 'User information retrieved successfully',
+      user: {
+        id: userData.id,
+        username: userData.username,
+        email: userData.email,
+        fullName: userData.full_name,
+        phoneNumber: userData.phone_number,
+        bio: userData.bio,
+        profilePic: userData.profile_picture,  // Assuming 'profile_pic' is the path or URL to the profile image
+      }
+    });
+  } catch (error) {
+    console.error('Error retrieving user:', error);
+    res.status(500).json({ message: 'Error retrieving user information', error: error.message || error });
+  }
+});
 
 router.put('/update-case-status', verifyToken, async (req, res) => {
   try {
@@ -146,13 +274,74 @@ router.put('/update-case-status', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error updating case status', error: error.message || error });
   }
 });
+router.put('/update-profile', verifyToken, async (req, res) => {
+  try {
+    // Extracting data from the request body
+    const { username, email, phone_number, full_name, profile_picture, bio } = req.body;
 
+    // Validate the incoming data
+    if (!username || !email) {
+      return res.status(400).json({ message: 'Username and email are required' });
+    }
+
+    // Build the query dynamically depending on which fields are provided
+    let query = 'UPDATE users SET ';
+    const values = [];
+
+    // Conditionally add fields to the query and values array
+    if (username) {
+      query += 'username = ?, ';
+      values.push(username);
+    }
+    if (email) {
+      query += 'email = ?, ';
+      values.push(email);
+    }
+    if (phone_number) {
+      query += 'phone_number = ?, ';
+      values.push(phone_number);
+    }
+    if (full_name) {
+      query += 'full_name = ?, ';
+      values.push(full_name);
+    }
+    if (profile_picture) {
+      query += 'profile_picture = ?, ';
+      values.push(profile_picture);
+    }
+    if (bio) {
+      query += 'bio = ?, ';
+      values.push(bio);
+    }
+
+    // Remove the last comma and space
+    query = query.slice(0, -2);
+
+    // Add the WHERE clause to identify the user by their ID (assuming the user ID is in req.user)
+    query += ' WHERE id = ?';
+    values.push(req.user.id); // Assuming `req.user.id` contains the authenticated user's ID
+
+    // Execute the query
+    const [result] = await dbConnection().promise().query(query, values);
+
+    // Check if any row was updated
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Respond with success message
+    res.status(200).json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Error updating profile', error: error.message || error });
+  }
+});
 
 router.post('/add-complaint', verifyToken, async (req, res) => {
   try {
     const { case_id, complaint_type, complaint_details, complainant_id, accused_id, complaint_status } = req.body;
 
-    if (!case_id || !complaint_type || !complaint_details || !complainant_id || !accused_id || !complaint_status) {
+    if (!case_id || !complaint_type || !complaint_details || !complainant_id || !accused_id) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
@@ -654,28 +843,8 @@ router.get('/unread-notifications', verifyToken, async (req, res) => {
   }
 });
 
-router.delete('/adminRoutes/delete-user/:userId', verifyToken, async (req, res) => {
-  const { userId } = req.params; // Extract the userId from the request parameters
-
-  try {
-    const query = 'DELETE FROM users WHERE id = ?';
-    console.log('Executing query:', query, 'with userId:', userId); 
-
-    const [result] = await dbConnection().promise().query(query, [userId]);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'User not found or already deleted' });
-    }
-
-    res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ message: 'Error deleting user', error: error.message || error });
-  }
-});
-
 router.delete('/notifications/:id', verifyToken, async (req, res) => {
-  const { id } = req.params; 
+  const { id } = req.params.id; 
 
   try {
     const query = 'DELETE FROM notifications WHERE id = ?';
@@ -693,8 +862,8 @@ router.delete('/notifications/:id', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error deleting notification', error: error.message || error });
   }
 });
-router.delete('/adminRoutes/delete-attachment/:attachmentId', verifyToken, async (req, res) => {
-  const { attachmentId } = req.params; // Extract the attachmentId from the request parameters
+router.delete('/delete-attachment/:attachmentId', verifyToken, async (req, res) => {
+  const attachmentId = req.params.attachmentId; // Extract the attachmentId from the request parameters
 
   try {
     // SQL query to delete an attachment by its ID
@@ -716,8 +885,8 @@ router.delete('/adminRoutes/delete-attachment/:attachmentId', verifyToken, async
     res.status(500).json({ message: 'Error deleting attachment', error: error.message || error });
   }
 });
-router.delete('/adminRoutes/delete-conversation/:conversationId', verifyToken, async (req, res) => {
-  const { conversationId } = req.params; // Extract the conversationId from the request parameters
+router.delete('/delete-conversation/:conversationId', verifyToken, async (req, res) => {
+  const conversationId = req.params.conversationId; // Extract the conversationId from the request parameters
 
   try {
     // SQL query to delete a conversation by its ID
@@ -740,8 +909,8 @@ router.delete('/adminRoutes/delete-conversation/:conversationId', verifyToken, a
   }
 });
 
-router.delete('/adminRoutes/delete-payment/:paymentId', verifyToken, async (req, res) => {
-  const { paymentId } = req.params; // Extract the paymentId from the request parameters
+router.delete('/delete-payment/:paymentId', verifyToken, async (req, res) => {
+  const paymentId  = req.params.paymentId; // Extract the paymentId from the request parameters
 
   try {
     // SQL query to delete a payment record by its ID
@@ -763,8 +932,8 @@ router.delete('/adminRoutes/delete-payment/:paymentId', verifyToken, async (req,
     res.status(500).json({ message: 'Error deleting payment record', error: error.message || error });
   }
 });
-router.delete('/adminRoutes/delete-session/:sessionId', verifyToken, async (req, res) => {
-  const { sessionId } = req.params; // Extract the sessionId from the request parameters
+router.delete('/delete-session/:sessionId', verifyToken, async (req, res) => {
+  const sessionId = req.params.sessionId; // Extract the sessionId from the request parameters
 
   try {
     // SQL query to delete a session record by its ID
@@ -787,8 +956,8 @@ router.delete('/adminRoutes/delete-session/:sessionId', verifyToken, async (req,
   }
 });
 
-router.delete('/adminRoutes/delete-complaint/:complaintId', verifyToken, async (req, res) => {
-  const { complaintId } = req.params; // Extract the complaintId from the request parameters
+router.delete('/delete-complaint/:complaintId', verifyToken, async (req, res) => {
+  const complaintId  = req.params.complaintId; // Extract the complaintId from the request parameters
 
   try {
     // SQL query to delete a complaint record by its ID
@@ -810,26 +979,37 @@ router.delete('/adminRoutes/delete-complaint/:complaintId', verifyToken, async (
     res.status(500).json({ message: 'Error deleting complaint record', error: error.message || error });
   }
 });
-router.delete('/adminRoutes/delete-case/:caseId', verifyToken, async (req, res) => {
-  const { caseId } = req.params; // Extract the caseId from the request parameters
-
+router.delete('/delete-case/:caseId', verifyToken, async (req, res) => {
   try {
+    const caseId  = req.params.caseId; // Extract the caseId from the request parameters
+
+    if (!caseId) {
+      return res.status(400).json({ message: 'Case ID is required' });
+    }
+
+    // Log the caseId for debugging
+    console.log('Received caseId:', caseId);
+
     // SQL query to delete a case record by its ID
     const query = 'DELETE FROM cases WHERE id = ?';
-    console.log('Executing query:', query, 'with caseId:', caseId); // Log query execution for debugging
+    console.log('Executing query:', query, 'with caseId:', caseId); // Log query execution
 
     const [result] = await dbConnection().promise().query(query, [caseId]);
 
     // Check if any row was affected
     if (result.affectedRows === 0) {
+      console.log('No rows affected, case not found or already deleted');
       return res.status(404).json({ message: 'Case record not found or already deleted' });
     }
 
     // Return a success message
+    console.log('Case record deleted successfully');
     res.json({ message: 'Case record deleted successfully' });
   } catch (error) {
-    // Handle errors during the delete operation
+    // Log detailed error
     console.error('Error deleting case record:', error);
+
+    // Return a generic error message
     res.status(500).json({ message: 'Error deleting case record', error: error.message || error });
   }
 });

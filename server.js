@@ -1,17 +1,20 @@
 require('dotenv').config();  // Make sure this is at the very top of your entry file
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const app = express();
+app.use('/uploads', (req, res, next) => {
+  console.log(`Requesting: ${req.originalUrl}`);
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
+const PORT = 4000;
+app.use(cors());
+app.use(express.json());
 const loginRouter = require('./login');
 const signupRouter = require('./insert_record');
 const adminRouter = require('./adminController');
 const jwt = require('jsonwebtoken');
-const verifyToken = require('./verifyToken');  // Import the verifyToken middleware
-
-const app = express();
-const PORT = 4000;
-app.use(cors());
-app.use(express.json());
-
+const verifyToken = require('./verifyToken');
 const authenticateToken = (req, res, next) => {
   const token = req.header('Authorization')?.split(' ')[1]; // Split "Bearer <token>"
   
