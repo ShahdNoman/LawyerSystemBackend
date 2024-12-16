@@ -3,62 +3,51 @@
 // const hostname = 'localhost';
 // const username = 'root';
 // const password = '';
-// const database = 'lawyersystemnew'; 
+// const database = 'lawyersystemnew';
 
 // function dbConnection() {
-//     const con = mysql.createConnection({
+//     const pool = mysql.createPool({
 //         host: hostname,
 //         user: username,
 //         password: password,
 //         database: database
 //     });
 
-//     con.connect(function(err) {
+//     pool.getConnection((err, connection) => {
 //         if (err) {
 //             console.error('Database connection failed: ' + err.stack);
 //             return { success: 'false', message: 'Database connection failed: ' + err.stack };
 //         }
+//         if (connection) connection.release();
 //         console.log('Connected to the database');
 //     });
 
-//     return con; 
+//     return pool;
 // }
 
 // module.exports = dbConnection;
-const mysql = require('mysql2');
 
-// Database credentials
+const mysql = require('mysql2');
 const hostname = 'localhost';
 const username = 'root';
 const password = '';
 const database = 'lawyersystemnew';
 
-// Create a connection to the database using the mysql2 promise-based API
 function dbConnection() {
-    // Create a connection pool for better handling of connections
     const pool = mysql.createPool({
         host: hostname,
         user: username,
         password: password,
-        database: database
+        database: database,
+        waitForConnections: true, // Wait if all connections are in use
+        connectionLimit: 10, // Limit the number of connections in the pool
+        queueLimit: 0, // No limit on queued requests
     });
 
-    // Return the promise-based version of the connection pool
-   // const promisePool = pool.promise();
-
-    // Test the connection
-    pool.getConnection((err, connection) => {
-        if (err) {
-            console.error('Database connection failed: ' + err.stack);
-            return { success: 'false', message: 'Database connection failed: ' + err.stack };
-        }
-        if (connection) connection.release();
-        console.log('Connected to the database');
-    });
+    console.log('Database connection pool created');
 
     return pool;
 }
 
 module.exports = dbConnection;
-
 
