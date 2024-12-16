@@ -67,10 +67,13 @@ router.get('/viewAll-conversations', verifyToken, async (req, res) => {
 });
 router.get('/viewAll-notifications', verifyToken, async (req, res) => {
   try {
-    const query = 'SELECT * FROM notifications';
-    console.log('Executing query:', query);  
-    const [result] = await dbConnection().promise().query(query);
-        if (!result || result.length === 0) {
+    const userId = req.user.id; // Modify based on how user_id is passed
+    const query = 'SELECT * FROM notifications WHERE user_id = ?';
+    console.log('Executing query:', query);
+
+    const [result] = await dbConnection().promise().query(query, [userId]);
+
+    if (!result || result.length === 0) {
       return res.status(404).json({ message: 'No notifications found' });
     }
 
@@ -80,6 +83,8 @@ router.get('/viewAll-notifications', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error fetching notifications', error: error.message || error });
   }
 });
+
+
 router.get('/viewAll-payments', verifyToken, async (req, res) => {
   try {
     const query = 'SELECT * FROM payments';
@@ -508,6 +513,52 @@ router.post('/mark-conversation-read', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error marking conversation as read', error: error.message || error });
   }
 });
+
+router.post('/markAll-notifications-read', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id; // Get user_id from the authenticated token
+    console.log('Marking all notifications as read for user:', userId);
+
+    const query = 'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0'; // Only mark unread notifications
+    console.log('Executing query:', query);
+
+    // Execute the query
+    const [result] = await dbConnection().promise().query(query, [userId]);
+
+    if (result.affectedRows === 0) {
+      console.log(`No unread notifications found for userId: ${userId}`);
+      return res.status(404).json({ message: 'No unread notifications found' });
+    }
+
+    console.log(`Successfully marked ${result.affectedRows} notifications as read for userId: ${userId}`);
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    res.status(500).json({ message: 'Error marking all notifications as read', error: error.message || error });
+  }
+});
+
+router.put('/mark-notification-read/:notificationId', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id; 
+    const notificationId = req.params.notificationId; // Get the notification ID from URL parameters
+    const query = 'UPDATE notifications SET is_read = 1 WHERE user_id = ? AND id = ?';
+
+    console.log('Executing query:', query);
+
+    const [result] = await dbConnection().promise().query(query, [userId, notificationId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Notification not found or already marked as read' });
+    }
+
+    res.json({ message: `Notification ${notificationId} marked as read` });
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    res.status(500).json({ message: 'Error marking notification as read', error: error.message || error });
+  }
+});
+
 
 
 router.post('/add-case', verifyToken, async (req, res) => {
@@ -1180,6 +1231,37 @@ router.delete('/delete-case/:caseId', verifyToken, async (req, res) => {
 
     // Return a generic error message
     res.status(500).json({ message: 'Error deleting case record', error: error.message || error });
+  }
+});
+router.delete('/delete-all-notifications', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const query = 'DELETE FROM notifications WHERE user_id = ?';
+    const [result] = await dbConnection().promise().query(query, [userId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'No notifications found for deletion' });
+    }
+
+    res.json({ message: 'All notifications deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting notifications', error: error.message || error });
+  }
+});
+router.delete('/delete-notification/:notificationId', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const notificationId = req.params.notificationId;
+    const query = 'DELETE FROM notifications WHERE user_id = ? AND id = ?';
+    const [result] = await dbConnection().promise().query(query, [userId, notificationId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting notification', error: error.message || error });
   }
 });
 
