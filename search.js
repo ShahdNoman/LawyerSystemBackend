@@ -1,13 +1,13 @@
-
 const express = require('express');
+const path = require('path'); // استيراد مكتبة path
 const dbConnection = require('./dbconnection'); // الاتصال بقاعدة البيانات
+require('dotenv').config();
 const router = express.Router();
 
-// مسار GET للبحث عن مستخدم بناءً على الاسم في الـ URL
+router.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 router.get('/search/:username', (req, res) => {
   const db = dbConnection();
   const username = req.params.username;  // الحصول على اسم المستخدم من الـ URL
-
   console.log('Username received:', username);  // إضافة السجل للتأكد من القيمة
   if (!username) {
     return res.status(400).json({
@@ -15,7 +15,6 @@ router.get('/search/:username', (req, res) => {
       message: 'No username provided',  // إذا لم يتم توفير اسم المستخدم
     });
   }
-
   // استعلام SQL للبحث عن المستخدمين الذين يتطابقون مع الاسم
   const query = `
     SELECT 
@@ -47,11 +46,16 @@ router.get('/search/:username', (req, res) => {
         message: 'No users found',  // إذا لم يتم العثور على مستخدمين
       });
     }
+
+    // تحديث مسار الصور
+    results.forEach(user => {
+      user.profile_picture = `http://10.0.2.2:4000${user.profile_picture}`;
+    });
+
     return res.status(200).json({
       success: true,
       users: results,  // إرجاع جميع النتائج المطابقة
     });
   });
 });
-
 module.exports = router;

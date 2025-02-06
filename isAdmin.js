@@ -10,9 +10,7 @@ const isAdmin = (req, res, next) => {
   if (!token) {
     return sendError(res, 'Access Denied, Token Missing');
   }
-
   const tokenWithoutBearer = token.startsWith('Bearer ') ? token.slice(7) : token;
-
   jwt.verify(tokenWithoutBearer, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
       return sendError(res, 'Invalid Token');
@@ -21,7 +19,6 @@ const isAdmin = (req, res, next) => {
     if (decoded.role !== 'Admin') {
       return sendError(res, 'You do not have permission to access this resource');
     }
-
     next(); // Proceed to the next middleware/route handler
   });
 };
