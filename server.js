@@ -13,6 +13,8 @@ app.use(express.json());
 const loginRouter = require('./login');
 const home = require('./home');
 const search =require('./search');
+=======
+>>>>>>> 340938e7315ae456a04fb6fc2484d89990ba8ff8
 const signupRouter = require('./insert_record');
 const adminRouter = require('./adminController');
 const jwt = require('jsonwebtoken');
@@ -62,4 +64,3 @@ app.use((err, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
-
