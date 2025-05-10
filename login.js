@@ -75,7 +75,6 @@ if (!SECRET_KEY) {
     SECRET_KEY, // Ensure SECRET_KEY is in .env
     { expiresIn: '1h' } // Token expires in 1 hour
   );
-
   console.log('Generated JWT in Login:', token);
   return res.status(200).json({
     success: true,

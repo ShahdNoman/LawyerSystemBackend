@@ -17,9 +17,8 @@ function dbConnection() {
     });
 
     console.log('Database connection pool created');
-
     return pool;
+
 }
 
 module.exports = dbConnection;
-

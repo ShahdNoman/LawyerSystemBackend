@@ -24,21 +24,20 @@ function isPasswordStrong(password) {
 
   return errors;
 }
-
 router.post('/insert_record', (req, res) => {
   const { 
     username, 
     password, 
-    email, 
-    full_name, 
-    phone_number, 
+    email,
     role, 
-    bio, 
+    phone_number, 
+    full_name, 
     membership_number, 
     judge_number, 
-    id_number 
+    id_number,
+    bio
   } = req.body;
-
+console.log(req.body);
   if (!username?.trim() || !password?.trim() || !email?.trim()) {
     return res.status(400).json({
       success: false,
@@ -131,5 +130,4 @@ router.post('/insert_record', (req, res) => {
     });
   });
 });
-
 module.exports = router;
